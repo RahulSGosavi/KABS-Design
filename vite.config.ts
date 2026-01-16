@@ -6,7 +6,8 @@ export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
   // The third parameter '' loads all env vars regardless of prefix, 
   // ensuring we can access VITE_API_KEY.
-  const env = loadEnv(mode, process.cwd(), '');
+  // Fix: Cast process to any to avoid "Property 'cwd' does not exist on type 'Process'" error
+  const env = loadEnv(mode, (process as any).cwd(), '');
 
   return {
     plugins: [react()],

@@ -14,7 +14,10 @@ export type Countertop =
   | 'White Quartz' | 'Black Granite' 
   | 'Marble Light' | 'Concrete Gray';
 
+export type ViewMode = '3D Realism' | '2D Architectural Plan';
+
 export interface DesignSettings {
+  viewMode: ViewMode;
   cabinetColor: CabinetColor;
   doorStyle: DoorStyle;
   wallColor: WallColor;
@@ -29,6 +32,7 @@ export interface RenderState {
 }
 
 export const DEFAULT_SETTINGS: DesignSettings = {
+  viewMode: '3D Realism',
   cabinetColor: 'White',
   doorStyle: 'Shaker',
   wallColor: 'Pure White',

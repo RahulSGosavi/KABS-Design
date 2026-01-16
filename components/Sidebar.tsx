@@ -1,5 +1,5 @@
 import React from 'react';
-import { DesignSettings, CabinetColor, DoorStyle, WallColor, Countertop } from '../types';
+import { DesignSettings, CabinetColor, DoorStyle, WallColor, Countertop, ViewMode } from '../types';
 import { Palette, Layers, Box, Square, Settings2, X } from 'lucide-react';
 
 interface SidebarProps {
@@ -83,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ settings, onUpdate, disabled, 
 
         {/* Scrollable Content */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          
           {renderOptionGroup(
             'Cabinet Finish', 
             <Palette size={14} />,

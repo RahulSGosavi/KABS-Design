@@ -17,57 +17,114 @@ export async function generateKitchenRender(
 
   let prompt = '';
 
-  if (isRefinement) {
-    // === MODE 2: MATERIAL SWAP (Locks Geometry) ===
-    // Use the existing 3D image as the base and only repaint surfaces.
+  // DYNAMIC DOOR STYLE DESCRIPTION - STRICTLY ENFORCING SOLID MATERIALS
+  const doorDescription = settings.doorStyle === 'Shaker' 
+    ? 'Solid Wood Shaker style (Recessed Panel). OPAQUE PAINTED FINISH. ABSOLUTELY NO GLASS INSERTS. NO MULLIONS.' 
+    : 'Minimalist Flat Slab (Plane) style. SOLID OPAQUE SURFACE. ABSOLUTELY NO GLASS.';
+
+  if (settings.viewMode === '2D Architectural Plan') {
+    // === MODE 3: 2D ARCHITECTURAL COLORING (Strict adherence to prompt rules) ===
     prompt = `
-      Task: PHOTO EDITING / RETEXTURING.
+      You are "KABS Design AI", a professional, production-grade Interior Design AI specialized in converting 2D Kitchen floor plans.
+
+      GOAL:
+      Convert the uploaded 2D floor plan into a consistent, correct, fully colored architectural plan.
+      
+      COMMAND RULES (STRICTLY FOLLOW):
+      1. DO NOT CREATE NEW WALLS OR CABINETS. Only colorize existing elements.
+      2. NEVER ALTER LAYOUT, DIMENSIONS or SCALE.
+      3. NO PARTIAL OR INCOMPLETE RENDERING.
+      4. KEEP ORIGINAL TEXT / SYMBOLS.
+      5. COLORING LOGIC:
+         - Cabinet Color: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
+         - Wall Color: ${settings.wallColor}
+         - Countertop: ${settings.countertop}
+         - Appliances: Stainless Steel
+      6. VIEW ANGLE: TOP-DOWN ARCHITECTURAL VIEW (2D Plan View).
+
+      Output: A high-resolution architectural colored plan.
+    `;
+  } else if (isRefinement) {
+    // === MODE 2: 3D MATERIAL SWAP (Locks Geometry) ===
+    prompt = `
+      Task: TECHNICAL RETEXTURING / MATERIAL SWAP.
       Input: A realistic 3D render of a kitchen.
       
-      OBJECTIVE: Change the material finishes EXACTLY as specified below.
-      
-      CRITICAL CONSTRAINTS:
+      [ABSOLUTE GEOMETRY LOCK]
       1. DO NOT CHANGE THE GEOMETRY.
       2. DO NOT MOVE THE CAMERA.
-      3. DO NOT MOVE OBJECTS.
-      4. DO NOT CHANGE LIGHTING.
-      5. ONLY change the colors/textures of the specified surfaces.
+      3. **KEEP ALL DOORS SOLID.** Do not turn solid cabinets into glass.
+      4. REMOVE any accidentally generated glass if present; make it solid.
 
-      TARGET UPDATES:
-      - CABINET FINISH: Change to ${COLOR_PROMPT_MAP[settings.cabinetColor]}. (Apply to all cabinet doors, drawers, and panels).
-      - WALL COLOR: Change to ${settings.wallColor}.
-      - DOOR STYLE: ${settings.doorStyle} (${settings.doorStyle === 'Shaker' ? 'Recessed panel details' : 'Flat slab modern'}).
-      - COUNTERTOP: ${settings.countertop}.
+      [TARGET UPDATES]
+      - CABINET FINISH: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
+      - WALL COLOR: ${settings.wallColor}
+      - DOOR STYLE: ${doorDescription}
+      - COUNTERTOP: ${settings.countertop}
+      - FLOORING: Subtle wood
 
       Output: A high-resolution photorealistic image with the EXACT SAME COMPOSITION as the input.
     `;
   } else {
-    // === MODE 1: INITIAL CONSTRUCTION (Strict Layout) ===
-    // Build the room from the 2D Floor Plan.
+    // === MODE 1: 3D INITIAL CONSTRUCTION (REALISTIC BUT CONTROLLED) ===
     prompt = `
-      Role: Senior Architectural Visualizer.
-      Task: Create a PHOTOREALISTIC 3D render from this 2D FLOOR PLAN.
+      You are a professional Interior Visualization AI.
 
-      [STRICT LAYOUT RULES - READ CAREFULLY]
-      1. IDENTIFY THE ISLAND: Look for the isolated rectangular block in the center. It MUST be free-standing. Do not attach it to walls.
-      2. IDENTIFY THE PERIMETER: Trace the cabinetry runs against the walls (L-shape, U-shape, or Galley).
-      3. PLACE APPLIANCES: Locate 'REF' (Fridge), 'RANGE' (Stove), 'SINK', 'DW' relative to the corners.
-      4. PRESERVE GEOMETRY: If a wall is 45-degrees, render it 45-degrees. If there is a window, put a window.
+      TASK TYPE:
+      Realistic interior rendering using LOCKED geometry from the uploaded PDF.
+      This is NOT a redesign task.
 
-      [CAMERA SETUP]
-      - Perspective: Eye-level (1.6m).
-      - Lens: 16mm Wide Angle.
-      - Angle: Shot from the open side of the room looking inward to show the relationship between the Island and Perimeter.
+      [SOURCE OF TRUTH]
+      The uploaded PDF drawing is the ONLY source for:
+      - Kitchen layout
+      - Wall positions
+      - Cabinet count and placement
+      - Island size and location
+      - Appliance locations
+      - Window and door positions
+      
+      Do NOT add, remove, or resize any architectural or cabinet element.
 
-      [DESIGN SPECS]
-      - Cabinet Color: ${COLOR_PROMPT_MAP[settings.cabinetColor]}.
-      - Style: ${settings.doorStyle} (${settings.doorStyle === 'Shaker' ? 'Classic Shaker' : 'Minimalist Flat'}).
-      - Walls: ${settings.wallColor}.
-      - Countertop: ${settings.countertop}.
-      - Floor: Natural Oak Wood.
-      - Lighting: Bright Day + Warm Interior (4000K).
+      [GEOMETRY LOCK (STRICT)]
+      - Preserve the exact layout from the PDF
+      - Maintain L / U / Galley / One-wall layout as-is
+      - Each cabinet must remain separate (no merging)
+      - Island dimensions must remain unchanged
+      - Do NOT center, balance, or symmetrize the kitchen
 
-      Output: A 100% structurally accurate photo of this specific kitchen plan.
+      [CAMERA & VIEW (REALISTIC BUT CONTROLLED)]
+      - **Camera Type**: Interior realistic perspective
+      - **Position**: Standing in living / dining area
+      - **Direction**: Facing the main sink + range wall
+      - **Island**: Must be fully visible in foreground
+      - **Background**: Main cabinets must be visible
+      - **Height**: 5 feet (human eye level)
+      - **Field of View**: 28–32° (NO wide angle)
+      - **Constraint**: Slight perspective only (avoid distortion)
+      - **Constraint**: Camera must remain FIXED.
+
+      [REALISM & LIGHTING]
+      - Soft natural daylight from windows
+      - Neutral white artificial ceiling lights
+      - No dramatic shadows
+      - Even exposure for cabinet visibility
+
+      [MATERIAL & COLOR RULES]
+      - **Cabinet Color**: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
+      - **Door Style**: ${doorDescription}
+      - **Wall Color**: ${settings.wallColor}
+      - **Countertop**: ${settings.countertop}
+      - **Appliances**: Stainless Steel
+      - **Flooring**: Subtle wood (do not dominate scene)
+
+      [DETAIL CONTROL]
+      - Allowed: Handles, hinges (simple & minimal), soft cabinet shadows.
+      - **FORBIDDEN**: Decorative items, plants, stools, rugs, extra lighting fixtures.
+
+      [ANTI-HALLUCINATION]
+      - If an element is unclear in the PDF, leave it plain. Do NOT guess.
+
+      Output: A clean, realistic interior kitchen image matching the PDF layout.
     `;
   }
 
@@ -87,25 +144,48 @@ export async function generateKitchenRender(
       },
       config: {
         seed: seed,
-        // Lower temperature for refinements to stick closer to input
-        temperature: isRefinement ? 0.3 : 0.7, 
+        // Lower temperature for technical accuracy/consistency
+        temperature: isRefinement ? 0.2 : 0.4, 
         imageConfig: {
             aspectRatio: '4:3',
-        }
+        },
+        // Relax safety settings to prevent blocking legitimate architectural drawings
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+        ],
       },
     });
 
     const candidates = response.candidates;
     if (candidates && candidates.length > 0) {
       const parts = candidates[0].content.parts;
+      
+      // 1. Look for Image
       for (const part of parts) {
         if (part.inlineData && part.inlineData.data) {
           return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
+
+      // 2. If no image, look for Text (Error/Refusal explanation)
+      let textResponse = '';
+      for (const part of parts) {
+        if (part.text) {
+          textResponse += part.text + ' ';
+        }
+      }
+      
+      if (textResponse) {
+        console.warn("Gemini returned text instead of image:", textResponse);
+        // Throw the text response so the user sees why it failed (e.g. "I cannot process PDF")
+        throw new Error(`The AI returned text instead of an image: "${textResponse.trim().substring(0, 150)}..."`);
+      }
     }
     
-    throw new Error("No image generated.");
+    throw new Error("No image generated. The AI response was empty.");
   } catch (error) {
     console.error("Gemini Generation Error:", error);
     throw error;
