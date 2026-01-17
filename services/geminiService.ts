@@ -19,112 +19,88 @@ export async function generateKitchenRender(
 
   // DYNAMIC DOOR STYLE DESCRIPTION - STRICTLY ENFORCING SOLID MATERIALS
   const doorDescription = settings.doorStyle === 'Shaker' 
-    ? 'Solid Wood Shaker style (Recessed Panel). OPAQUE PAINTED FINISH. ABSOLUTELY NO GLASS INSERTS. NO MULLIONS.' 
-    : 'Minimalist Flat Slab (Plane) style. SOLID OPAQUE SURFACE. ABSOLUTELY NO GLASS.';
+    ? 'Solid Wood Shaker style (Recessed Panel with flat center). OPAQUE PAINTED FINISH. SOLID DOORS ONLY. ABSOLUTELY NO GLASS INSERTS on wall cabinets unless explicitly labeled "Glass".' 
+    : 'Modern Minimalist Flat Slab. SOLID OPAQUE FINISH. SOLID DOORS ONLY. ABSOLUTELY NO GLASS INSERTS.';
+
+  const commonRules = `
+    [MATERIAL CONSISTENCY RULES]
+    1. **UNIFORM COLOR**: All cabinets (Perimeter AND Island) must be "${COLOR_PROMPT_MAP[settings.cabinetColor]}" unless the floor plan has a text label explicitly naming a different color for the island.
+       - Do NOT make the island a random accent color.
+       - Do NOT make upper cabinets a different color from base cabinets.
+    2. **COUNTERTOPS**: All surfaces must be "${settings.countertop}".
+    3. **DOOR STYLE**: ${doorDescription}.
+  `;
 
   if (settings.viewMode === '2D Architectural Plan') {
-    // === MODE 3: 2D ARCHITECTURAL COLORING (Strict adherence to prompt rules) ===
+    // === MODE 3: 2D ARCHITECTURAL COLORING ===
     prompt = `
-      You are "KABS Design AI", a professional, production-grade Interior Design AI specialized in converting 2D Kitchen floor plans.
-
-      GOAL:
-      Convert the uploaded 2D floor plan into a consistent, correct, fully colored architectural plan.
+      You are "KABS Design AI". 
+      TASK: Colorize this 2D floor plan layout.
       
-      COMMAND RULES (STRICTLY FOLLOW):
-      1. DO NOT CREATE NEW WALLS OR CABINETS. Only colorize existing elements.
-      2. NEVER ALTER LAYOUT, DIMENSIONS or SCALE.
-      3. NO PARTIAL OR INCOMPLETE RENDERING.
-      4. KEEP ORIGINAL TEXT / SYMBOLS.
-      5. COLORING LOGIC:
-         - Cabinet Color: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
-         - Wall Color: ${settings.wallColor}
-         - Countertop: ${settings.countertop}
-         - Appliances: Stainless Steel
-      6. VIEW ANGLE: TOP-DOWN ARCHITECTURAL VIEW (2D Plan View).
+      [STRICT ADHERENCE]
+      1. KEEP ALL ORIGINAL TEXT LABELS (Cabinet Codes like B30, W3030). Do not obscure them.
+      2. FILL COLORS inside the existing lines only.
+      3. Cabinet Fill: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
+      4. Flooring: Subtle grid or wood texture.
+      5. Do not change the geometry.
 
-      Output: A high-resolution architectural colored plan.
+      Output: High-quality colored architectural plan.
     `;
   } else if (isRefinement) {
     // === MODE 2: 3D MATERIAL SWAP (Locks Geometry) ===
     prompt = `
-      Task: TECHNICAL RETEXTURING / MATERIAL SWAP.
-      Input: A realistic 3D render of a kitchen.
+      TASK: Retexture this 3D render.
       
-      [ABSOLUTE GEOMETRY LOCK]
-      1. DO NOT CHANGE THE GEOMETRY.
-      2. DO NOT MOVE THE CAMERA.
-      3. **KEEP ALL DOORS SOLID.** Do not turn solid cabinets into glass.
-      4. REMOVE any accidentally generated glass if present; make it solid.
-
-      [TARGET UPDATES]
-      - CABINET FINISH: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
-      - WALL COLOR: ${settings.wallColor}
-      - DOOR STYLE: ${doorDescription}
-      - COUNTERTOP: ${settings.countertop}
-      - FLOORING: Subtle wood
-
-      Output: A high-resolution photorealistic image with the EXACT SAME COMPOSITION as the input.
+      [GEOMETRY LOCK]
+      - DO NOT CHANGE THE LAYOUT.
+      - DO NOT ADD OR REMOVE CABINETS.
+      - KEEP THE EXACT CAMERA ANGLE.
+      
+      [UPDATES]
+      - Change Cabinet Color to: ${COLOR_PROMPT_MAP[settings.cabinetColor]} (Apply to ALL cabinets including Island).
+      - Change Wall Color to: ${settings.wallColor}
+      - Change Countertop to: ${settings.countertop}
+      
+      ${commonRules}
+      
+      Output: Photorealistic image with identical geometry to input.
     `;
   } else {
-    // === MODE 1: 3D INITIAL CONSTRUCTION (REALISTIC BUT CONTROLLED) ===
+    // === MODE 1: 3D INITIAL CONSTRUCTION FROM PDF/IMAGE ===
     prompt = `
-      You are a professional Interior Visualization AI.
+      You are an expert Architectural Visualization AI. 
+      TASK: Convert this 2D Floor Plan into a 3D Photorealistic Kitchen.
 
-      TASK TYPE:
-      Realistic interior rendering using LOCKED geometry from the uploaded PDF.
-      This is NOT a redesign task.
+      [STRICT CONSTRAINTS - DO NOT IGNORE]
+      1. **NO EXTRA CABINETS**: You must ONLY render the cabinets drawn in the plan. 
+         - If the drawing shows a blank wall space, LEAVE IT BLANK (painted wall). 
+         - DO NOT fill empty spaces with extra cabinets.
+      2. **NO GLASS DOORS**: Unless the text label on the plan specifically says "Glass", "Mullion", or "Prep for Glass", ALL wall cabinets must have SOLID DOORS matching the cabinet color. 
+         - Standard "W3030" or "W3618" are ALWAYS SOLID DOORS.
+      3. **READ THE CODES & LABELS**: 
+         - "DB" or "Drawers" -> Render a stack of 3 or 4 drawers.
+         - "SB" or "Sink" -> Render a sink base (false front top, doors below).
+         - "B" (e.g., B30) -> Standard Base cabinet with top drawer and door below.
+         - "W" (e.g., W3030) -> Standard Wall cabinet.
+         - "Ref" -> Space for Refrigerator.
+         - "DW" -> Stainless Steel Dishwasher panel.
+      4. **DOOR SWINGS**:
+         - Single curved line = Single Door.
+         - Double curved lines (meeting in middle) = Double Doors.
 
-      [SOURCE OF TRUTH]
-      The uploaded PDF drawing is the ONLY source for:
-      - Kitchen layout
-      - Wall positions
-      - Cabinet count and placement
-      - Island size and location
-      - Appliance locations
-      - Window and door positions
-      
-      Do NOT add, remove, or resize any architectural or cabinet element.
+      [GEOMETRY & LAYOUT]
+      - Follow the exact L-shape, U-shape, or Galley layout shown.
+      - Place the Island exactly where drawn.
+      - Windows and Doors must match the plan.
 
-      [GEOMETRY LOCK (STRICT)]
-      - Preserve the exact layout from the PDF
-      - Maintain L / U / Galley / One-wall layout as-is
-      - Each cabinet must remain separate (no merging)
-      - Island dimensions must remain unchanged
-      - Do NOT center, balance, or symmetrize the kitchen
+      ${commonRules}
 
-      [CAMERA & VIEW (REALISTIC BUT CONTROLLED)]
-      - **Camera Type**: Interior realistic perspective
-      - **Position**: Standing in living / dining area
-      - **Direction**: Facing the main sink + range wall
-      - **Island**: Must be fully visible in foreground
-      - **Background**: Main cabinets must be visible
-      - **Height**: 5 feet (human eye level)
-      - **Field of View**: 28–32° (NO wide angle)
-      - **Constraint**: Slight perspective only (avoid distortion)
-      - **Constraint**: Camera must remain FIXED.
+      [SCENE SETTINGS]
+      - View: Eye-level perspective looking at the main kitchen area.
+      - Lighting: Bright, neutral, photorealistic.
+      - Style: High-end residential.
 
-      [REALISM & LIGHTING]
-      - Soft natural daylight from windows
-      - Neutral white artificial ceiling lights
-      - No dramatic shadows
-      - Even exposure for cabinet visibility
-
-      [MATERIAL & COLOR RULES]
-      - **Cabinet Color**: ${COLOR_PROMPT_MAP[settings.cabinetColor]}
-      - **Door Style**: ${doorDescription}
-      - **Wall Color**: ${settings.wallColor}
-      - **Countertop**: ${settings.countertop}
-      - **Appliances**: Stainless Steel
-      - **Flooring**: Subtle wood (do not dominate scene)
-
-      [DETAIL CONTROL]
-      - Allowed: Handles, hinges (simple & minimal), soft cabinet shadows.
-      - **FORBIDDEN**: Decorative items, plants, stools, rugs, extra lighting fixtures.
-
-      [ANTI-HALLUCINATION]
-      - If an element is unclear in the PDF, leave it plain. Do NOT guess.
-
-      Output: A clean, realistic interior kitchen image matching the PDF layout.
+      Output: A 3D render strictly matching the drawing's specifications.
     `;
   }
 
@@ -144,12 +120,11 @@ export async function generateKitchenRender(
       },
       config: {
         seed: seed,
-        // Lower temperature for technical accuracy/consistency
-        temperature: isRefinement ? 0.2 : 0.4, 
+        // Low temperature for adherence to the plan
+        temperature: 0.1, 
         imageConfig: {
             aspectRatio: '4:3',
         },
-        // Relax safety settings to prevent blocking legitimate architectural drawings
         safetySettings: [
           { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
           { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
@@ -163,14 +138,12 @@ export async function generateKitchenRender(
     if (candidates && candidates.length > 0) {
       const parts = candidates[0].content.parts;
       
-      // 1. Look for Image
       for (const part of parts) {
         if (part.inlineData && part.inlineData.data) {
           return `data:image/png;base64,${part.inlineData.data}`;
         }
       }
 
-      // 2. If no image, look for Text (Error/Refusal explanation)
       let textResponse = '';
       for (const part of parts) {
         if (part.text) {
@@ -180,12 +153,11 @@ export async function generateKitchenRender(
       
       if (textResponse) {
         console.warn("Gemini returned text instead of image:", textResponse);
-        // Throw the text response so the user sees why it failed (e.g. "I cannot process PDF")
-        throw new Error(`The AI returned text instead of an image: "${textResponse.trim().substring(0, 150)}..."`);
+        throw new Error(`AI processing note: "${textResponse.trim().substring(0, 150)}..."`);
       }
     }
     
-    throw new Error("No image generated. The AI response was empty.");
+    throw new Error("No image generated.");
   } catch (error) {
     console.error("Gemini Generation Error:", error);
     throw error;
