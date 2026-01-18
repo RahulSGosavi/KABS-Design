@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { UploadZone } from './components/UploadZone';
 import { PricingAI } from './components/PricingAI';
 import { generateKitchenRender } from './services/geminiService';
+import { fileParser } from './services/fileParser';
 import { DesignSettings, DEFAULT_SETTINGS, RenderState } from './types';
 import { RefreshCw, AlertCircle, X, Settings2, Download } from 'lucide-react';
 
@@ -15,43 +15,87 @@ export default function App() {
   const [settings, setSettings] = useState<DesignSettings>(DEFAULT_SETTINGS);
   const [floorPlanFile, setFloorPlanFile] = useState<File | null>(null);
   const [floorPlanPreview, setFloorPlanPreview] = useState<string | null>(null);
+  
+  // New State to hold extracted text from PDF to help AI detect "Island" labels
+  const [floorPlanText, setFloorPlanText] = useState<string>(""); 
+
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   
   const [renderState, setRenderState] = useState<RenderState>({
     isLoading: false,
     generatedImage: null,
     error: null,
-    seed: Math.floor(Math.random() * 1000000)
+    seed: 0
   });
 
   // --- Handlers ---
-  const handleFileSelect = (file: File) => {
+  const handleFileSelect = async (file: File) => {
     setFloorPlanFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setFloorPlanPreview(e.target?.result as string);
-      setRenderState({ 
+    
+    // CRITICAL FIX: Generate a STABLE seed based on the file content.
+    const stableSeed = file.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) + file.size;
+
+    setRenderState(prev => ({ 
+      isLoading: true, // Show loading immediately
+      generatedImage: null, 
+      error: null,
+      seed: stableSeed 
+    }));
+
+    try {
+      let previewData = '';
+      let extractedText = '';
+      
+      if (file.type === 'application/pdf') {
+        // 1. Convert PDF to Image for Vision Model
+        previewData = await fileParser.pdfToImage(file);
+        // 2. Extract Text for "Island" keyword detection
+        extractedText = await fileParser.pdfToText(file);
+      } else {
+        // Standard Image Read
+        previewData = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.readAsDataURL(file);
+        });
+        extractedText = ""; // OCR not implemented for raw images client-side
+      }
+
+      setFloorPlanPreview(previewData);
+      setFloorPlanText(extractedText);
+      setRenderState(prev => ({ ...prev, isLoading: false }));
+
+    } catch (err: any) {
+      console.error(err);
+      setRenderState(prev => ({ 
+        ...prev, 
         isLoading: false, 
-        generatedImage: null, 
-        error: null,
-        seed: Math.floor(Math.random() * 1000000)
-      });
-    };
-    reader.readAsDataURL(file);
+        error: "Failed to process file. If it's a PDF, ensure it's valid." 
+      }));
+    }
   };
 
   const handleSettingsUpdate = (key: keyof DesignSettings, value: string) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
+    // When settings change, we want to update the render, but keep the seed stable 
+    // to ensure we are just changing materials on the same geometry.
     if (floorPlanPreview && currentView === 'visualizer') {
-      triggerGeneration(newSettings);
+      triggerGeneration(newSettings, renderState.seed);
     }
   };
 
-  const triggerGeneration = async (currentSettings: DesignSettings) => {
+  // Helper to manually regenerate with a NEW random seed (if user wants a variation)
+  const handleRegenerateRandom = () => {
+    const newRandomSeed = Math.floor(Math.random() * 10000000);
+    setRenderState(prev => ({ ...prev, seed: newRandomSeed }));
+    triggerGeneration(settings, newRandomSeed);
+  };
+
+  const triggerGeneration = async (currentSettings: DesignSettings, seedToUse: number) => {
     if (!floorPlanPreview || !floorPlanFile) return;
 
-    setRenderState(prev => ({ ...prev, isLoading: true, error: null }));
+    setRenderState(prev => ({ ...prev, isLoading: true, error: null, seed: seedToUse }));
     setSidebarOpen(false);
 
     try {
@@ -60,18 +104,22 @@ export default function App() {
       let inputMime = '';
 
       if (hasPreviousRender && renderState.generatedImage) {
+        // Use previous render for refinement
         inputData = renderState.generatedImage.split(',')[1];
         inputMime = 'image/png';
       } else {
+        // Use original floor plan (which is now ALWAYS an image string, even if source was PDF)
         inputData = floorPlanPreview.split(',')[1];
-        inputMime = floorPlanFile.type;
+        // Ensure we send the correct mime type for the vision model
+        inputMime = floorPlanPreview.startsWith('data:image/png') ? 'image/png' : 'image/jpeg';
       }
 
       const imageUrl = await generateKitchenRender(
         inputData, 
         inputMime, 
         currentSettings, 
-        renderState.seed,
+        seedToUse,
+        floorPlanText, // Pass the extracted text context
         hasPreviousRender
       );
       
@@ -95,11 +143,12 @@ export default function App() {
   const resetUpload = () => {
     setFloorPlanFile(null);
     setFloorPlanPreview(null);
+    setFloorPlanText("");
     setRenderState({ 
       isLoading: false, 
       generatedImage: null, 
       error: null,
-      seed: Math.floor(Math.random() * 1000000) 
+      seed: 0
     });
   };
 
@@ -184,11 +233,19 @@ export default function App() {
                   <div className="w-full max-w-6xl h-full flex flex-col">
                      <div className="flex items-center justify-between text-[10px] md:text-xs text-slate-500 uppercase font-bold tracking-wider px-1 mb-2">
                         <span>AI Render Output</span>
-                        {renderState.generatedImage && (
-                          <button onClick={handleDownload} className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
-                            <Download size={14} /> Download
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {/* Add specific regenerate button for variations */}
+                          {renderState.generatedImage && (
+                            <button onClick={handleRegenerateRandom} disabled={renderState.isLoading} className="flex items-center gap-1.5 text-slate-400 hover:text-white bg-slate-800 px-2 py-1 rounded-md border border-slate-700">
+                              <RefreshCw size={14} /> Regenerate Variation
+                            </button>
+                          )}
+                          {renderState.generatedImage && (
+                            <button onClick={handleDownload} className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 px-2 py-1 rounded-md border border-blue-500/20">
+                              <Download size={14} /> Download
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="flex-1 bg-black rounded-xl border border-slate-800 relative overflow-hidden flex items-center justify-center min-h-[400px]">
                         {renderState.generatedImage ? (
@@ -203,7 +260,7 @@ export default function App() {
                                 <RefreshCw className="text-slate-600" size={32} />
                              </div>
                              <h3 className="text-slate-300 font-medium">Ready to Visualize</h3>
-                             <button onClick={() => triggerGeneration(settings)} disabled={renderState.isLoading} className="mt-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full text-sm font-medium shadow-lg">
+                             <button onClick={() => triggerGeneration(settings, renderState.seed)} disabled={renderState.isLoading} className="mt-6 bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-full text-sm font-medium shadow-lg">
                                {renderState.isLoading ? 'Rendering...' : 'Generate Visualization'}
                              </button>
                           </div>

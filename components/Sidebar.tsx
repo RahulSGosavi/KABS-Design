@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { DesignSettings } from '../types';
 import { Palette, Layers, Box, Square, X, Bot, Image as ImageIcon } from 'lucide-react';
@@ -56,21 +55,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <button onClick={onClose} className="p-2 text-slate-400 md:hidden"><X size={24} /></button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="p-4 grid grid-cols-2 gap-2 border-b border-slate-800">
+        {/* Navigation Tabs - Pricing AI Removed */}
+        <div className="p-4 border-b border-slate-800">
            <button 
              onClick={() => { onViewChange('visualizer'); onClose(); }}
-             className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${currentView === 'visualizer' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}`}
+             className={`w-full flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${currentView === 'visualizer' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}`}
            >
              <ImageIcon size={20} className="mb-1" />
              <span className="text-xs font-bold">3D Visualizer</span>
-           </button>
-           <button 
-             onClick={() => { onViewChange('pricing'); onClose(); }}
-             className={`flex flex-col items-center justify-center p-3 rounded-lg border transition-all ${currentView === 'pricing' ? 'bg-blue-600/10 border-blue-500 text-blue-400' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}`}
-           >
-             <Bot size={20} className="mb-1" />
-             <span className="text-xs font-bold">Pricing Agent</span>
            </button>
         </div>
 

@@ -1,6 +1,5 @@
-
-import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileSpreadsheet, FileText, Send, Bot, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { FileSpreadsheet, FileText, Send, Bot, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { fileParser } from '../services/fileParser';
 import { GoogleGenAI } from "@google/genai";
 
@@ -27,9 +26,6 @@ export const PricingAI: React.FC = () => {
   const [isAiThinking, setIsAiThinking] = useState(false);
   
   const chatEndRef = useRef<HTMLDivElement>(null);
-
-  // Initialize AI
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'pdf' | 'excel') => {
     if (e.target.files && e.target.files[0]) {
@@ -73,8 +69,11 @@ export const PricingAI: React.FC = () => {
 
   const generateNkbaInsights = async (text: string) => {
     try {
+      // Lazy Init
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-latest',
+        model: 'gemini-3-flash-preview',
         contents: `Analyze this kitchen floor plan text data for NKBA rule compliance. 
         Identify 3 potential issues or good points (e.g. Landing zones, Work Triangle, Walkways).
         Return purely a JSON array of objects with 'type' (warning, success, info) and 'message'.
@@ -118,8 +117,11 @@ export const PricingAI: React.FC = () => {
         Be precise.
       `;
 
+      // Lazy Init
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-latest',
+        model: 'gemini-3-flash-preview',
         contents: prompt
       });
 
@@ -132,10 +134,11 @@ export const PricingAI: React.FC = () => {
       setMessages(prev => [...prev, aiMsg]);
 
     } catch (err) {
+      console.error(err);
       setMessages(prev => [...prev, { 
         id: (Date.now()+1).toString(), 
         sender: 'ai', 
-        text: "Sorry, I encountered an error processing that request.", 
+        text: "Sorry, I encountered an error processing that request. Please check your API key.", 
         timestamp: new Date() 
       }]);
     } finally {
